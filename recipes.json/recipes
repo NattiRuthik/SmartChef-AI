@@ -1,0 +1,148 @@
+import json
+from pathlib import Path
+
+
+# Find the recipe database in the project folder.
+RECIPE_FILE = Path(__file__).with_name("recipes.json")
+
+
+def load_recipes():
+    """Load recipes from the JSON file."""
+
+    with RECIPE_FILE.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def normalize_ingredients(text):
+    """Convert the ingredient input into a clean set."""
+
+    synonyms = {
+        "eggs": "egg",
+        "tomatoes": "tomato",
+        "onions": "onion",
+        "potatoes": "potato"
+    }
+
+    items = text.lower().replace("\n", ",").split(",")
+
+    ingredients = set()
+
+    for item in items:
+        item = item.strip()
+
+        if item:
+            item = synonyms.get(item, item)
+            ingredients.add(item)
+
+    return ingredients
+
+
+def recommend_recipes(user_input):
+    """Match recipes and rank them by ingredient availability."""
+
+    available = normalize_ingredients(user_input)
+    recipes = load_recipes()
+
+    results = []
+
+    for recipe in recipes:
+        required = set(recipe["ingredients"])
+
+        matched = available & required
+        missing = required - available
+
+        score = round(
+            len(matched) / len(required) * 100
+        )
+
+        results.append({
+            "name": recipe["name"],
+            "matched": sorted(matched),
+            "missing": sorted(missing),
+            "score": score,
+            "time": recipe["time"],
+            "instructions": recipe["instructions"]
+        })
+
+    # Prefer fewer missing ingredients.
+    # Break ties using the ingredient match percentage.
+    results.sort(
+        key=lambda recipe: (
+            len(recipe["missing"]),
+            -recipe["score"],
+            recipe["time"]
+        )
+    )
+
+    return [
+        recipe for recipe in results
+        if recipe["matched"]
+    ]
+
+
+def main():
+    """Start the SmartChef AI application."""
+
+    print("\n" + "=" * 45)
+    print("             SMARTCHEF AI")
+    print("=" * 45)
+
+    print("\nEnter the ingredients you have at home.")
+
+    user_input = input(
+        "\nIngredients: "
+    ).strip()
+
+    if not user_input:
+        print("Please enter some ingredients.")
+        return
+
+    recipes = recommend_recipes(user_input)
+
+    if not recipes:
+        print("\nNo matching recipes were found.")
+        print("Try entering different ingredients.")
+        return
+
+    print("\n" + "=" * 45)
+    print("       YOUR RECOMMENDED DISHES")
+    print("=" * 45)
+
+    for number, recipe in enumerate(recipes[:5], start=1):
+
+        print(f"\n{number}. {recipe['name']}")
+
+        print(
+            f"Ingredient match: {recipe['score']}%"
+        )
+
+        print(
+            f"Cooking time: {recipe['time']} minutes"
+        )
+
+        print(
+            "Ingredients available: "
+            + ", ".join(recipe["matched"])
+        )
+
+        if recipe["missing"]:
+            print(
+                "Additional ingredients needed: "
+                + ", ".join(recipe["missing"])
+            )
+        else:
+            print("All listed ingredients are available.")
+
+        print("\nCooking instructions:")
+
+        for step, instruction in enumerate(
+            recipe["instructions"], start=1
+        ):
+            print(f"{step}. {instruction}")
+
+        print("-" * 45)
+
+
+if __name__ == "__main__":
+    main()
+    
